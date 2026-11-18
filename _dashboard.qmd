@@ -1,0 +1,151 @@
+---
+title: "Avaliação Institucional — Cursos UAB/UFABC"
+format: 
+  dashboard:
+    theme: cosmo
+    nav-buttons: [github]
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(googlesheets4)
+library(plotly)
+library(DT)
+
+# 1. Autenticação Não-Interativa (Service Account)
+# Lê o JSON da conta de serviço a partir da variável de ambiente GS4_SERVICE_ACCOUNT
+json_creds <- Sys.getenv("GS4_SERVICE_ACCOUNT")
+
+if (json_creds != "") {
+  gs4_auth(path = json_creds)
+} else {
+  # Fallback para teste local interativo no seu computador
+  gs4_auth()
+}
+
+# 2. Leitura direta da planilha vinculada ao Google Forms
+# Substitua pela URL ou ID da sua planilha do Google Sheets
+sheet_url <- Sys.getenv("GS4_SHEET_URL") 
+raw_data <- read_sheet(sheet_url, sheet = 1)
+
+# 3. Padronização de nomes de colunas e Tratamento (ETL)
+# O Google Forms exporta cabeçalhos longos (perguntas inteiras).
+# Renomeamos por posição para garantir estabilidade mesmo com pequenos ajustes no texto.
+df <- raw_data %>%
+  rename(
+    timestamp = 1,
+    curso     = 2,
+    polo      = 3,
+    q_02      = 4,  # Conectividade
+    q_03      = 5,  # Tempo de dedicação
+    q_04      = 6,  # Navegação Moodle
+    q_05      = 7,  # Qualidade Materiais
+    q_06      = 8,  # Acessibilidade
+    q_07      = 9,  # Atuação Docente
+    q_08      = 10, # Tutoria a Distância
+    q_09      = 11, # Tutoria Presencial
+    q_10      = 12, # Infraestrutura Física
+    q_11      = 13, # Atendimento Polo
+    q_12      = 14, # Encontros Presenciais
+    q_13      = 15, # Secretaria Acadêmica
+    q_14      = 16, # Comunicação Geral
+    q_15      = 17, # Autonomia
+    q_16      = 18, # Satisfação Global
+    q_17      = 19, # Permanência / Evasão
+    q_18      = 20, # Pontos Fortes
+    q_19      = 21  # Pontos de Melhoria
+  ) %>%
+  mutate(
+    across(c(q_02, q_04:q_16), ~ na_if(as.character(.), "Não se aplica")),
+    across(c(q_02, q_04:q_16), ~ na_if(as.character(.), "Não utilizo")),
+    across(c(q_02, q_04:q_16), as.numeric)
+  ) %>%
+  rowwise() %>%
+  mutate(
+    iid = mean(c(q_02, q_04, q_05, q_06), na.rm = TRUE),
+    imp = mean(c(q_07, q_08, q_09), na.rm = TRUE),
+    isp = mean(c(q_10, q_11, q_12), na.rm = TRUE),
+    igi = mean(c(q_13, q_14), na.rm = TRUE)
+  ) %>%
+  ungroup()
+
+# Métricas Globais para KPIs
+total_resp <- nrow(df)
+media_global <- round(mean(df$q_16, na.rm = TRUE), 2)
+pct_evasao <- round(mean(df$q_17 != "Não pensei", na.rm = TRUE) * 100, 1)
+
+---
+title: "Avaliação Institucional — Cursos UAB/UFABC"
+format: 
+  dashboard:
+    theme: cosmo
+    nav-buttons: [github]
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(googlesheets4)
+library(plotly)
+library(DT)
+
+# 1. Autenticação Não-Interativa (Service Account)
+# Lê o JSON da conta de serviço a partir da variável de ambiente GS4_SERVICE_ACCOUNT
+json_creds <- Sys.getenv("GS4_SERVICE_ACCOUNT")
+
+if (json_creds != "") {
+  gs4_auth(path = json_creds)
+} else {
+  # Fallback para teste local interativo no seu computador
+  gs4_auth()
+}
+
+# 2. Leitura direta da planilha vinculada ao Google Forms
+# Substitua pela URL ou ID da sua planilha do Google Sheets
+sheet_url <- Sys.getenv("GS4_SHEET_URL") 
+raw_data <- read_sheet(sheet_url, sheet = 1)
+
+# 3. Padronização de nomes de colunas e Tratamento (ETL)
+# O Google Forms exporta cabeçalhos longos (perguntas inteiras).
+# Renomeamos por posição para garantir estabilidade mesmo com pequenos ajustes no texto.
+df <- raw_data %>%
+  rename(
+    timestamp = 1,
+    curso     = 2,
+    polo      = 3,
+    q_02      = 4,  # Conectividade
+    q_03      = 5,  # Tempo de dedicação
+    q_04      = 6,  # Navegação Moodle
+    q_05      = 7,  # Qualidade Materiais
+    q_06      = 8,  # Acessibilidade
+    q_07      = 9,  # Atuação Docente
+    q_08      = 10, # Tutoria a Distância
+    q_09      = 11, # Tutoria Presencial
+    q_10      = 12, # Infraestrutura Física
+    q_11      = 13, # Atendimento Polo
+    q_12      = 14, # Encontros Presenciais
+    q_13      = 15, # Secretaria Acadêmica
+    q_14      = 16, # Comunicação Geral
+    q_15      = 17, # Autonomia
+    q_16      = 18, # Satisfação Global
+    q_17      = 19, # Permanência / Evasão
+    q_18      = 20, # Pontos Fortes
+    q_19      = 21  # Pontos de Melhoria
+  ) %>%
+  mutate(
+    across(c(q_02, q_04:q_16), ~ na_if(as.character(.), "Não se aplica")),
+    across(c(q_02, q_04:q_16), ~ na_if(as.character(.), "Não utilizo")),
+    across(c(q_02, q_04:q_16), as.numeric)
+  ) %>%
+  rowwise() %>%
+  mutate(
+    iid = mean(c(q_02, q_04, q_05, q_06), na.rm = TRUE),
+    imp = mean(c(q_07, q_08, q_09), na.rm = TRUE),
+    isp = mean(c(q_10, q_11, q_12), na.rm = TRUE),
+    igi = mean(c(q_13, q_14), na.rm = TRUE)
+  ) %>%
+  ungroup()
+
+# Métricas Globais para KPIs
+total_resp <- nrow(df)
+media_global <- round(mean(df$q_16, na.rm = TRUE), 2)
+pct_evasao <- round(mean(df$q_17 != "Não pensei", na.rm = TRUE) * 100, 1)
