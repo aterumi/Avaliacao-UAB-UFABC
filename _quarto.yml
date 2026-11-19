@@ -1,6 +1,12 @@
 project:
   type: website
   output-dir: _site
+  render:
+    - dashboard.qmd
 
 website:
   title: "Avaliação Institucional UAB/UFABC"
+
+format:
+  dashboard:
+    theme: cosmo

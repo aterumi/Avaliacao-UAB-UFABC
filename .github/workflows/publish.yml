@@ -1,0 +1,61 @@
+name: Publicar Dashboard UAB
+
+on:
+  # Executa automaticamente ao enviar alterações para a branch main
+  push:
+    branches: [main]
+  # Executa diariamente às 06:00 (horário de Brasília / 09:00 UTC)
+  schedule:
+    - cron: '0 9 * * *'
+  # Permite disparar a atualização manualmente com 1 clique na aba Actions
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Garante que apenas uma publicação rode por vez, evitando conflitos
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar código do repositório
+        uses: actions/checkout@v4
+
+      - name: Instalar Quarto
+        uses: quarto-dev/quarto-actions/setup@v2
+
+      - name: Configurar ambiente R
+        uses: r-lib/actions/setup-r@v2
+        with:
+          use-public-rspm: true
+
+      - name: Instalar pacotes R necessários
+        uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          packages: |
+            any::tidyverse
+            any::googlesheets4
+            any::plotly
+            any::DT
+            any::rmarkdown
+
+      - name: Compilar Dashboard Quarto
+        env:
+          GS4_SERVICE_ACCOUNT: ${{ secrets.GS4_SERVICE_ACCOUNT }}
+          GS4_SHEET_URL: ${{ secrets.GS4_SHEET_URL }}
+        run: quarto render dashboard.qmd
+
+      - name: Preparar arquivos para o GitHub Pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Publicar no GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

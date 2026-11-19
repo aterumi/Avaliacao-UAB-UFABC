@@ -12,25 +12,22 @@ library(googlesheets4)
 library(plotly)
 library(DT)
 
-# 1. Autenticação Não-Interativa (Service Account)
-# Lê o JSON da conta de serviço a partir da variável de ambiente GS4_SERVICE_ACCOUNT
+# 1. Autenticação Não-Interativa via Conta de Serviço (GitHub Secrets)
 json_creds <- Sys.getenv("GS4_SERVICE_ACCOUNT")
 
 if (json_creds != "") {
   gs4_auth(path = json_creds)
 } else {
-  # Fallback para teste local interativo no seu computador
+  # Fallback para autenticação interativa caso você rode localmente no VS Code/RStudio
   gs4_auth()
 }
 
 # 2. Leitura direta da planilha vinculada ao Google Forms
-# Substitua pela URL ou ID da sua planilha do Google Sheets
-sheet_url <- Sys.getenv("GS4_SHEET_URL") 
+sheet_url <- Sys.getenv("GS4_SHEET_URL")
 raw_data <- read_sheet(sheet_url, sheet = 1)
 
-# 3. Padronização de nomes de colunas e Tratamento (ETL)
-# O Google Forms exporta cabeçalhos longos (perguntas inteiras).
-# Renomeamos por posição para garantir estabilidade mesmo com pequenos ajustes no texto.
+# 3. Padronização de Colunas e Tratamento (ETL)
+# Mapeamento por posição das colunas da planilha do Google Forms
 df <- raw_data %>%
   rename(
     timestamp = 1,
@@ -44,108 +41,209 @@ df <- raw_data %>%
     q_07      = 9,  # Atuação Docente
     q_08      = 10, # Tutoria a Distância
     q_09      = 11, # Tutoria Presencial
-    q_10      = 12, # Infraestrutura Física
-    q_11      = 13, # Atendimento Polo
-    q_12      = 14, # Encontros Presenciais
-    q_13      = 15, # Secretaria Acadêmica
+    q_10      = 12, # Infraestrutura Física do Polo
+    q_11      = 13, # Atendimento Administrativo no Polo
+    q_12      = 14, # Divulgação de Encontros Presenciais
+    q_13      = 15, # Secretaria Acadêmica UFABC
     q_14      = 16, # Comunicação Geral
-    q_15      = 17, # Autonomia
+    q_15      = 17, # Autonomia e Engajamento
     q_16      = 18, # Satisfação Global
-    q_17      = 19, # Permanência / Evasão
-    q_18      = 20, # Pontos Fortes
-    q_19      = 21  # Pontos de Melhoria
+    q_17      = 19, # Permanência / Intenção de Desistência
+    q_18      = 20, # Pontos Fortes (Aberta)
+    q_19      = 21  # Pontos de Melhoria (Aberta)
   ) %>%
   mutate(
+    # Converte respostas não aplicáveis em NA para não distorcer as médias
     across(c(q_02, q_04:q_16), ~ na_if(as.character(.), "Não se aplica")),
     across(c(q_02, q_04:q_16), ~ na_if(as.character(.), "Não utilizo")),
     across(c(q_02, q_04:q_16), as.numeric)
   ) %>%
   rowwise() %>%
   mutate(
-    iid = mean(c(q_02, q_04, q_05, q_06), na.rm = TRUE),
-    imp = mean(c(q_07, q_08, q_09), na.rm = TRUE),
-    isp = mean(c(q_10, q_11, q_12), na.rm = TRUE),
-    igi = mean(c(q_13, q_14), na.rm = TRUE)
+    iid = mean(c(q_02, q_04, q_05, q_06), na.rm = TRUE), # Índice de Infraestrutura Digital
+    imp = mean(c(q_07, q_08, q_09), na.rm = TRUE),       # Índice de Mediação Pedagógica
+    isp = mean(c(q_10, q_11, q_12), na.rm = TRUE),       # Índice de Suporte do Polo
+    igi = mean(c(q_13, q_14), na.rm = TRUE)              # Índice de Gestão Institucional
   ) %>%
   ungroup()
 
-# Métricas Globais para KPIs
-total_resp <- nrow(df)
+# 4. Métricas Globais para os Cartões (KPIs)
+total_resp   <- nrow(df)
 media_global <- round(mean(df$q_16, na.rm = TRUE), 2)
-pct_evasao <- round(mean(df$q_17 != "Não pensei", na.rm = TRUE) * 100, 1)
+pct_evasao   <- round(mean(df$q_17 != "Não pensei", na.rm = TRUE) * 100, 1)
+ultima_att   <- format(Sys.time(), "%d/%m/%Y %H:%M")
+```
 
----
-title: "Avaliação Institucional — Cursos UAB/UFABC"
-format: 
-  dashboard:
-    theme: cosmo
-    nav-buttons: [github]
----
+# Visão Geral
 
-```{r setup, include=FALSE}
-library(tidyverse)
-library(googlesheets4)
-library(plotly)
-library(DT)
+## Row {height=22%}
 
-# 1. Autenticação Não-Interativa (Service Account)
-# Lê o JSON da conta de serviço a partir da variável de ambiente GS4_SERVICE_ACCOUNT
-json_creds <- Sys.getenv("GS4_SERVICE_ACCOUNT")
+```{r}
+#| content: valuebox
+#| title: "Total de Respondentes"
+list(icon = "people-fill", color = "primary", value = total_resp)
+```
 
-if (json_creds != "") {
-  gs4_auth(path = json_creds)
-} else {
-  # Fallback para teste local interativo no seu computador
-  gs4_auth()
-}
+```{r}
+#| content: valuebox
+#| title: "Satisfação Global (Escala 1 a 5)"
+list(icon = "star-fill", color = "success", value = media_global)
+```
 
-# 2. Leitura direta da planilha vinculada ao Google Forms
-# Substitua pela URL ou ID da sua planilha do Google Sheets
-sheet_url <- Sys.getenv("GS4_SHEET_URL") 
-raw_data <- read_sheet(sheet_url, sheet = 1)
+```{r}
+#| content: valuebox
+#| title: "Pensaram em Desistir (%)"
+list(icon = "exclamation-triangle-fill", color = "warning", value = paste0(pct_evasao, "%"))
+```
 
-# 3. Padronização de nomes de colunas e Tratamento (ETL)
-# O Google Forms exporta cabeçalhos longos (perguntas inteiras).
-# Renomeamos por posição para garantir estabilidade mesmo com pequenos ajustes no texto.
-df <- raw_data %>%
-  rename(
-    timestamp = 1,
-    curso     = 2,
-    polo      = 3,
-    q_02      = 4,  # Conectividade
-    q_03      = 5,  # Tempo de dedicação
-    q_04      = 6,  # Navegação Moodle
-    q_05      = 7,  # Qualidade Materiais
-    q_06      = 8,  # Acessibilidade
-    q_07      = 9,  # Atuação Docente
-    q_08      = 10, # Tutoria a Distância
-    q_09      = 11, # Tutoria Presencial
-    q_10      = 12, # Infraestrutura Física
-    q_11      = 13, # Atendimento Polo
-    q_12      = 14, # Encontros Presenciais
-    q_13      = 15, # Secretaria Acadêmica
-    q_14      = 16, # Comunicação Geral
-    q_15      = 17, # Autonomia
-    q_16      = 18, # Satisfação Global
-    q_17      = 19, # Permanência / Evasão
-    q_18      = 20, # Pontos Fortes
-    q_19      = 21  # Pontos de Melhoria
+```{r}
+#| content: valuebox
+#| title: "Última Atualização"
+list(icon = "clock-history", color = "light", value = ultima_att)
+```
+
+## Row {height=78%}
+
+### Column {width=55%}
+
+```{r}
+#| title: "Média dos Índices Sintéticos (Linha vermelha = Meta 4,0)"
+indices_df <- df %>%
+  summarise(
+    `Infraestrutura Digital (IID)` = mean(iid, na.rm = TRUE),
+    `Mediação Pedagógica (IMP)`    = mean(imp, na.rm = TRUE),
+    `Suporte do Polo (ISP)`        = mean(isp, na.rm = TRUE),
+    `Gestão Institucional (IGI)`   = mean(igi, na.rm = TRUE)
   ) %>%
-  mutate(
-    across(c(q_02, q_04:q_16), ~ na_if(as.character(.), "Não se aplica")),
-    across(c(q_02, q_04:q_16), ~ na_if(as.character(.), "Não utilizo")),
-    across(c(q_02, q_04:q_16), as.numeric)
-  ) %>%
-  rowwise() %>%
-  mutate(
-    iid = mean(c(q_02, q_04, q_05, q_06), na.rm = TRUE),
-    imp = mean(c(q_07, q_08, q_09), na.rm = TRUE),
-    isp = mean(c(q_10, q_11, q_12), na.rm = TRUE),
-    igi = mean(c(q_13, q_14), na.rm = TRUE)
-  ) %>%
-  ungroup()
+  pivot_longer(everything(), names_to = "Dimensao", values_to = "Media") %>%
+  mutate(Media = round(Media, 2))
 
-# Métricas Globais para KPIs
-total_resp <- nrow(df)
-media_global <- round(mean(df$q_16, na.rm = TRUE), 2)
-pct_evasao <- round(mean(df$q_17 != "Não pensei", na.rm = TRUE) * 100, 1)
+plot_ly(
+  indices_df,
+  x = ~Media,
+  y = ~reorder(Dimensao, Media),
+  type = "bar",
+  orientation = "h",
+  text = ~Media,
+  textposition = "auto",
+  marker = list(color = "#006633")
+) %>%
+  layout(
+    xaxis = list(title = "Nota Média (1 a 5)", range = c(0, 5.2)),
+    yaxis = list(title = ""),
+    shapes = list(
+      list(
+        type = "line", x0 = 4, x1 = 4, y0 = -0.5, y1 = 3.5,
+        line = list(color = "#d9534f", dash = "dash", width = 2)
+      )
+    )
+  )
+```
+
+### Column {width=45%}
+
+```{r}
+#| title: "Diagnóstico de Permanência e Motivos de Evasão (Q17)"
+evasao_df <- df %>%
+  filter(!is.na(q_17)) %>%
+  count(q_17) %>%
+  arrange(desc(n))
+
+plot_ly(
+  evasao_df,
+  labels = ~q_17,
+  values = ~n,
+  type = "pie",
+  hole = 0.45,
+  textinfo = "percent"
+) %>%
+  layout(
+    showlegend = TRUE,
+    legend = list(orientation = "h", y = -0.1)
+  )
+```
+
+# Diagnóstico por Polo
+
+## Row
+
+```{r}
+#| title: "Semáforo de Desempenho por Polo Presencial (Verde > 4,0 | Amarelo 3,0–4,0 | Vermelho < 3,0)"
+polo_summary <- df %>%
+  group_by(Polo = polo) %>%
+  summarise(
+    Respondentes          = n(),
+    `Infra. Digital`      = round(mean(iid, na.rm = TRUE), 2),
+    `Mediação Pedagógica` = round(mean(imp, na.rm = TRUE), 2),
+    `Suporte Polo`        = round(mean(isp, na.rm = TRUE), 2),
+    `Gestão UFABC`        = round(mean(igi, na.rm = TRUE), 2),
+    `Satisfação Geral`    = round(mean(q_16, na.rm = TRUE), 2),
+    .groups = "drop"
+  ) %>%
+  arrange(desc(Respondentes))
+
+datatable(
+  polo_summary,
+  filter = "top",
+  options = list(pageLength = 15, autoWidth = TRUE),
+  rownames = FALSE
+) %>%
+  formatStyle(
+    c("Infra. Digital", "Mediação Pedagógica", "Suporte Polo", "Gestão UFABC", "Satisfação Geral"),
+    backgroundColor = styleInterval(c(3.0, 4.0), c("#f8d7da", "#fff3cd", "#d4edda"))
+  )
+```
+
+# Desempenho por Curso
+
+## Row
+
+```{r}
+#| title: "Comparativo de Indicadores por Curso UAB/UFABC"
+curso_summary <- df %>%
+  group_by(Curso = curso) %>%
+  summarise(
+    Respondentes          = n(),
+    `Infra. Digital`      = round(mean(iid, na.rm = TRUE), 2),
+    `Mediação Pedagógica` = round(mean(imp, na.rm = TRUE), 2),
+    `Suporte Polo`        = round(mean(isp, na.rm = TRUE), 2),
+    `Gestão UFABC`        = round(mean(igi, na.rm = TRUE), 2),
+    `Satisfação Geral`    = round(mean(q_16, na.rm = TRUE), 2),
+    .groups = "drop"
+  ) %>%
+  arrange(desc(Respondentes))
+
+datatable(
+  curso_summary,
+  filter = "top",
+  options = list(pageLength = 15, autoWidth = TRUE),
+  rownames = FALSE
+) %>%
+  formatStyle(
+    c("Infra. Digital", "Mediação Pedagógica", "Suporte Polo", "Gestão UFABC", "Satisfação Geral"),
+    backgroundColor = styleInterval(c(3.0, 4.0), c("#f8d7da", "#fff3cd", "#d4edda"))
+  )
+```
+
+# Voz do Estudante
+
+## Row
+
+```{r}
+#| title: "Relatos Qualitativos — Pontos Fortes e Sugestões de Melhoria"
+comentarios_df <- df %>%
+  select(
+    Curso = curso,
+    Polo = polo,
+    `Pontos Fortes (Q18)` = q_18,
+    `Pontos de Melhoria (Q19)` = q_19
+  ) %>%
+  filter(!is.na(`Pontos Fortes (Q18)`) | !is.na(`Pontos de Melhoria (Q19)`))
+
+datatable(
+  comentarios_df,
+  filter = "top",
+  options = list(pageLength = 10, autoWidth = TRUE),
+  rownames = FALSE
+)
+```
