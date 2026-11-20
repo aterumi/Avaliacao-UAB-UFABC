@@ -41,6 +41,7 @@ jobs:
           packages: |
             any::tidyverse
             any::googlesheets4
+            any::jsonlite
             any::plotly
             any::DT
             any::rmarkdown

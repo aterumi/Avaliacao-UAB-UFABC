@@ -16,7 +16,9 @@ library(DT)
 json_creds <- Sys.getenv("GS4_SERVICE_ACCOUNT")
 
 if (json_creds != "") {
-  gs4_auth(path = json_creds)
+  temp_json <- tempfile(fileext = ".json")
+  writeLines(json_creds, temp_json)
+  gs4_auth(path = temp_json)
 } else {
   # Fallback para autenticação interativa caso você rode localmente no VS Code/RStudio
   gs4_auth()
